@@ -43,9 +43,12 @@ class LEOrder
     public  $expires;
     public  $identifiers;
     private $authorizationURLs;
-    public  $authorizations;
-    public  $finalizeURL;
-    public  $certificateURL;
+
+    /** @var LEAuthorization[] */
+    public $authorizations;
+
+    public $finalizeURL;
+    public $certificateURL;
 
     private $log;
 
@@ -101,7 +104,7 @@ class LEOrder
                             if (is_file($file)) rename($file, $file . '.old');
                         }
                         if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('Domains do not match order data. Renaming current files and creating new order.', 'function LEOrder __construct');
-                        $this->createOrder($domains, $notBefore, $notAfter, $keyType);
+                        $this->createOrder($domains, $notBefore, $notAfter);
                     } else {
                         $this->status            = $get['body']['status'];
                         $this->expires           = $get['body']['expires'];
@@ -236,7 +239,7 @@ class LEOrder
      * Get all pending LetsEncrypt Authorization instances and return the necessary data for verification. The data in the return object depends on the $type.
      * @param int $type       The type of verification to get. Supporting http-01 and dns-01. Supporting LEOrder::CHALLENGE_TYPE_HTTP and LEOrder::CHALLENGE_TYPE_DNS. Throws
      *                        a Runtime Exception when requesting an unknown $type. Keep in mind a wildcard domain authorization only accepts LEOrder::CHALLENGE_TYPE_DNS.
-     * @return object    Returns an array with verification data if successful, false if not pending LetsEncrypt Authorization instances were found. The return array always
+     * @return array|bool Returns an array with verification data if successful, false if not pending LetsEncrypt Authorization instances were found. The return array always
      *                        contains 'type' and 'identifier'. For LEOrder::CHALLENGE_TYPE_HTTP, the array contains 'filename' and 'content' for necessary the authorization file.
      *                        For LEOrder::CHALLENGE_TYPE_DNS, the array contains 'DNSDigest', which is the content for the necessary DNS TXT entry.
      */

@@ -50,13 +50,11 @@ class LEClient
 
     /**
      * Initiates the LetsEncrypt main client.
-     * @param array   $email           The array of strings containing e-mail addresses. Only used in this function when creating a new account.
-     * @param boolean $acmeURL         ACME URL, can be string or one of predefined values: LE_STAGING or LE_PRODUCTION. Defaults to LE_STAGING.
-     * @param int     $log             The level of logging. Defaults to no logging. LOG_OFF, LOG_STATUS, LOG_DEBUG accepted. Defaults to LOG_OFF. (optional)
-     * @param string  $certificateKeys The main directory in which all keys (and certificates), including account keys, are stored. Defaults to 'keys/'. (optional)
-     * @param array   $certificateKeys Optional array containing location of all certificate files. Required paths are public_key, private_key, order and certificate/fullchain_certificate (you can use both or only one of them)
-     * @param string  $accountKeys     The directory in which the account keys are stored. Is a subdir inside $certificateKeys. Defaults to '__account/'.(optional)
-     * @param array   $accountKeys     Optional array containing location of account private and public keys. Required paths are private_key, public_key.
+     * @param array|string $email           The array of strings containing e-mail addresses. Only used in this function when creating a new account.
+     * @param string       $acmeURL         ACME URL, can be string or one of predefined values: LE_STAGING or LE_PRODUCTION. Defaults to LE_STAGING.
+     * @param int          $log             The level of logging. Defaults to no logging. LOG_OFF, LOG_STATUS, LOG_DEBUG accepted. Defaults to LOG_OFF. (optional)
+     * @param string       $certificateKeys Optional array containing location of all certificate files. Required paths are public_key, private_key, order and certificate/fullchain_certificate (you can use both or only one of them)
+     * @param string       $accountKeys     Optional array containing location of account private and public keys. Required paths are private_key, public_key.
      */
     public function __construct($email, $acmeURL = LEClient::LE_PRODUCTION, $log = LEClient::LOG_OFF, $certificateKeys = 'keys/', $accountKeys = '__account/')
     {
@@ -104,7 +102,7 @@ class LEClient
             throw new \RuntimeException('certificateKeys must be string or array.');
         }
 
-        if (is_string($accountKeys)) {
+        if (is_string($accountKeys) && isset($certificateKeysDir)) {
             $accountKeys = $certificateKeysDir . '/' . $accountKeys;
 
             if (!file_exists($accountKeys)) {
@@ -132,7 +130,7 @@ class LEClient
 
 
         $this->connector = new LEConnector($this->log, $this->baseURL, $this->accountKeys);
-        $this->account   = new LEAccount($this->connector, $this->log, $email, $this->accountKeys);
+        $this->account   = new LEAccount($this->connector, $this->log, (array) $email, $this->accountKeys);
         if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('LEClient finished constructing', 'function LEClient __construct');
     }
 

@@ -71,7 +71,7 @@ class LEAccount
     /**
      * Creates a new LetsEncrypt account.
      * @param array $email The array of strings containing e-mail addresses.
-     * @return object    Returns the new account URL when the account was successfully created, false if not.
+     * @return bool|object
      */
     private function createLEAccount($email)
     {
@@ -89,7 +89,7 @@ class LEAccount
 
     /**
      * Gets the LetsEncrypt account URL associated with the stored account keys.
-     * @return object    Returns the account URL if it is found, or false when none is found.
+     * @return bool|object
      */
     private function getLEAccount()
     {
@@ -193,6 +193,7 @@ class LEAccount
         if (strpos($post['header'], "200 OK") !== false) {
             $this->connector->accountDeactivated = true;
             if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('Account deactivated.', 'function deactivateAccount');
+            return true;
         } else {
             return false;
         }
