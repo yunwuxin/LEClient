@@ -35,12 +35,10 @@ class LEFunctions
 {
     /**
      * Generates a new RSA keypair and saves both keys to a new file.
-     * @param string $directory      The directory in which to store the new keys. If set to null or empty string - privateKeyFile and publicKeyFile will be treated as absolute paths.
-     * @param string $privateKeyFile The filename for the private key file.
-     * @param string $publicKeyFile  The filename for the public key file.
-     * @param int    $keySize        RSA key size, must be between 2048 and 4096 (default is 4096)
+     * @param int $keySize RSA key size, must be between 2048 and 4096 (default is 4096)
+     * @return array
      */
-    public static function RSAGenerateKeys($directory, $privateKeyFile = 'private.pem', $publicKeyFile = 'public.pem', $keySize = 4096)
+    public static function RSAGenerateKeys($keySize = 4096)
     {
 
         if ($keySize < 2048 || $keySize > 4096) throw new \RuntimeException("RSA key size must be between 2048 and 4096.");
@@ -68,26 +66,18 @@ class LEFunctions
 
         $details = openssl_pkey_get_details($res);
 
-        if ($directory !== null && $directory !== '') {
-            $privateKeyFile = $directory . $privateKeyFile;
-            $publicKeyFile  = $directory . $publicKeyFile;
-        }
-
-        file_put_contents($privateKeyFile, $privateKey);
-        file_put_contents($publicKeyFile, $details['key']);
-
         openssl_pkey_free($res);
+
+        return [$privateKey, $details['key']];
     }
 
 
     /**
      * Generates a new EC prime256v1 keypair and saves both keys to a new file.
-     * @param string $directory      The directory in which to store the new keys. If set to null or empty string - privateKeyFile and publicKeyFile will be treated as absolute paths.
-     * @param string $privateKeyFile The filename for the private key file.
-     * @param string $publicKeyFile  The filename for the public key file.
-     * @param int    $keySize
+     * @param int $keySize
+     * @return array
      */
-    public static function ECGenerateKeys($directory, $privateKeyFile = 'private.pem', $publicKeyFile = 'public.pem', $keySize = 256)
+    public static function ECGenerateKeys($keySize = 256)
     {
         if (version_compare(PHP_VERSION, '7.1.0') == -1) throw new \RuntimeException("PHP 7.1+ required for EC keys.");
 
@@ -108,15 +98,9 @@ class LEFunctions
 
         $details = openssl_pkey_get_details($res);
 
-        if ($directory !== null && $directory !== '') {
-            $privateKeyFile = $directory . $privateKeyFile;
-            $publicKeyFile  = $directory . $publicKeyFile;
-        }
-
-        file_put_contents($privateKeyFile, $privateKey);
-        file_put_contents($publicKeyFile, $details['key']);
-
         openssl_pkey_free($res);
+
+        return [$privateKey, $details['key']];
     }
 
 

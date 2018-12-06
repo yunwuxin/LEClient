@@ -32,35 +32,36 @@ namespace LEClient;
 class LEConnector
 {
     public $baseURL;
-    public $accountKeys;
 
     private $nonce;
+    private $kid;
 
+    public $privateKey;
     public $keyChange;
     public $newAccount;
     public $newNonce;
     public $newOrder;
     public $revokeCert;
 
-    public $accountURL;
-    public $accountDeactivated = false;
-
-    private $log;
 
     /**
      * Initiates the LetsEncrypt Connector class.
-     * @param int    $log         The level of logging. Defaults to no logging. LOG_OFF, LOG_STATUS, LOG_DEBUG accepted.
-     * @param string $baseURL     The LetsEncrypt server URL to make requests to.
-     * @param array  $accountKeys Array containing location of account keys files.
+     * @param string $baseURL The LetsEncrypt server URL to make requests to.
+     * @param        $privateKey
      */
-    public function __construct($log, $baseURL, $accountKeys)
+    public function __construct($baseURL, $privateKey)
     {
-        $this->baseURL     = $baseURL;
-        $this->accountKeys = $accountKeys;
-        $this->log         = $log;
+        $this->baseURL    = $baseURL;
+        $this->privateKey = $privateKey;
         $this->getLEDirectory();
         $this->getNewNonce();
     }
+
+    public function setKid($kid)
+    {
+        $this->kid = $kid;
+    }
+
 
     /**
      * Requests the LetsEncrypt Directory and stores the necessary URLs in this LetsEncrypt Connector instance.
@@ -92,8 +93,6 @@ class LEConnector
      */
     private function request($method, $URL, $data = null)
     {
-        if ($this->accountDeactivated) throw new \RuntimeException('The account was deactivated. No further requests can be made.');
-
         $headers    = ['Accept: application/json', 'Content-Type: application/jose+json'];
         $requestURL = preg_match('~^http~', $URL) ? $URL : $this->baseURL . $URL;
         $handle     = curl_init();
@@ -129,7 +128,6 @@ class LEConnector
         $body         = substr($response, $header_size);
         $jsonbody     = json_decode($body, true);
         $jsonresponse = ['request' => $method . ' ' . $requestURL, 'header' => $header, 'body' => $jsonbody === null ? $body : $jsonbody];
-        if ($this->log >= LECLient::LOG_DEBUG) LEFunctions::log($jsonresponse);
 
         if ((($method == 'POST' OR $method == 'GET') AND strpos($header, "200 OK") === false AND strpos($header, "201 Created") === false) OR
             ($method == 'HEAD' AND strpos($header, "204 No Content") === false)) {
@@ -178,15 +176,15 @@ class LEConnector
 
     /**
      * Generates a JSON Web Key signature to attach to the request.
-     * @param array  $payload        The payload to add to the signature.
-     * @param string $url            The URL to use in the signature.
-     * @param string $privateKeyFile The private key to sign the request with. Defaults to 'private.pem'. Defaults to accountKeys[private_key].
+     * @param array  $payload    The payload to add to the signature.
+     * @param string $url        The URL to use in the signature.
+     * @param string $privateKey The private key to sign the request with. Defaults to 'private.pem'. Defaults to accountKeys[private_key].
      * @return string    Returns a JSON encoded string containing the signature.
      */
-    public function signRequestJWK($payload, $url, $privateKeyFile = '')
+    public function signRequestJWK($payload, $url, $privateKey = '')
     {
-        if ($privateKeyFile == '') $privateKeyFile = $this->accountKeys['private_key'];
-        $privateKey = openssl_pkey_get_private(file_get_contents($privateKeyFile));
+        if ($privateKey == '') $privateKey = $this->privateKey;
+        $privateKey = openssl_pkey_get_private($privateKey);
         $details    = openssl_pkey_get_details($privateKey);
 
         $protected = [
@@ -217,21 +215,17 @@ class LEConnector
 
     /**
      * Generates a Key ID signature to attach to the request.
-     * @param array|string $payload        The payload to add to the signature.
-     * @param string       $kid            The Key ID to use in the signature.
-     * @param string       $url            The URL to use in the signature.
-     * @param string       $privateKeyFile The private key to sign the request with. Defaults to 'private.pem'. Defaults to accountKeys[private_key].
+     * @param array|string $payload The payload to add to the signature.
+     * @param string       $url     The URL to use in the signature.
      * @return string    Returns a JSON encoded string containing the signature.
      */
-    public function signRequestKid($payload, $kid, $url, $privateKeyFile = '')
+    public function signRequestKid($payload, $url)
     {
-        if ($privateKeyFile == '') $privateKeyFile = $this->accountKeys['private_key'];
-        $privateKey = openssl_pkey_get_private(file_get_contents($privateKeyFile));
-        $details    = openssl_pkey_get_details($privateKey);
+        $privateKey = openssl_pkey_get_private($this->privateKey);
 
         $protected = [
             "alg"   => "RS256",
-            "kid"   => $kid,
+            "kid"   => $this->kid,
             "nonce" => $this->nonce,
             "url"   => $url
         ];

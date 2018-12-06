@@ -32,7 +32,6 @@ namespace LEClient;
 class LEAccount
 {
     private $connector;
-    private $accountKeys;
 
     public $id;
     public $key;
@@ -44,27 +43,23 @@ class LEAccount
 
     private $log;
 
+    public $url;
+
     /**
      * Initiates the LetsEncrypt Account class.
-     * @param LEConnector $connector   The LetsEncrypt Connector instance to use for HTTP requests.
-     * @param int         $log         The level of logging. Defaults to no logging. LOG_OFF, LOG_STATUS, LOG_DEBUG accepted.
-     * @param array       $email       The array of strings containing e-mail addresses. Only used when creating a new account.
-     * @param array       $accountKeys Array containing location of account keys files.
+     * @param LEConnector $connector
+     * @param array       $email The array of strings containing e-mail addresses. Only used when creating a new account.
      */
-    public function __construct($connector, $log, $email, $accountKeys)
+    public function __construct($connector, $email)
     {
-        $this->connector   = $connector;
-        $this->accountKeys = $accountKeys;
-        $this->log         = $log;
+        $this->connector = $connector;
 
-        if (!file_exists($this->accountKeys['private_key']) OR !file_exists($this->accountKeys['public_key'])) {
-            if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('No account found, attempting to create account.', 'function LEAccount __construct');
-            LEFunctions::RSAgenerateKeys(null, $this->accountKeys['private_key'], $this->accountKeys['public_key']);
-            $this->connector->accountURL = $this->createLEAccount($email);
-        } else {
-            $this->connector->accountURL = $this->getLEAccount();
+        if (!($this->url = $this->getLEAccount())) {
+            $this->url = $this->createLEAccount($email);
         }
-        if ($this->connector->accountURL == false) throw new \RuntimeException('Account not found or deactivated.');
+
+        $this->connector->setKid($this->url);
+
         $this->getLEAccountData();
     }
 
@@ -107,8 +102,8 @@ class LEAccount
      */
     private function getLEAccountData()
     {
-        $sign = $this->connector->signRequestKid(['' => ''], $this->connector->accountURL, $this->connector->accountURL);
-        $post = $this->connector->post($this->connector->accountURL, $sign);
+        $sign = $this->connector->signRequestKid(['' => ''], $this->url);
+        $post = $this->connector->post($this->url, $sign);
         if (strpos($post['header'], "200 OK") !== false) {
             $this->id        = $post['body']['id'];
             $this->key       = $post['body']['key'];
@@ -133,8 +128,8 @@ class LEAccount
             return empty($addr) ? '' : (strpos($addr, 'mailto') === false ? 'mailto:' . $addr : $addr);
         }, $email);
 
-        $sign = $this->connector->signRequestKid(['contact' => $contact], $this->connector->accountURL, $this->connector->accountURL);
-        $post = $this->connector->post($this->connector->accountURL, $sign);
+        $sign = $this->connector->signRequestKid(['contact' => $contact], $this->url);
+        $post = $this->connector->post($this->url, $sign);
         if (strpos($post['header'], "200 OK") !== false) {
             $this->id        = $post['body']['id'];
             $this->key       = $post['body']['key'];
@@ -143,59 +138,10 @@ class LEAccount
             $this->initialIp = $post['body']['initialIp'];
             $this->createdAt = $post['body']['createdAt'];
             $this->status    = $post['body']['status'];
-            if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('Account data updated.', 'function updateAccount');
             return true;
         } else {
             return false;
         }
     }
 
-    /**
-     * Creates new RSA account keys and updates the keys with LetsEncrypt.
-     * @return boolean    Returns true if the update is successful, false if not.
-     */
-    public function changeAccountKeys()
-    {
-        LEFunctions::RSAgenerateKeys(null, $this->accountKeys['private_key'] . '.new', $this->accountKeys['public_key'] . '.new');
-        $privateKey   = openssl_pkey_get_private(file_get_contents($this->accountKeys['private_key'] . '.new'));
-        $details      = openssl_pkey_get_details($privateKey);
-        $innerPayload = ['account' => $this->connector->accountURL, 'newKey' => [
-            "kty" => "RSA",
-            "n"   => LEFunctions::Base64UrlSafeEncode($details["rsa"]["n"]),
-            "e"   => LEFunctions::Base64UrlSafeEncode($details["rsa"]["e"])
-        ]];
-        $outerPayload = $this->connector->signRequestJWK($innerPayload, $this->connector->keyChange, $this->accountKeys['private_key'] . '.new');
-        $sign         = $this->connector->signRequestKid($outerPayload, $this->connector->accountURL, $this->connector->keyChange);
-        $post         = $this->connector->post($this->connector->keyChange, $sign);
-        if (strpos($post['header'], "200 OK") !== false) {
-            $this->getLEAccountData();
-
-            unlink($this->accountKeys['private_key']);
-            unlink($this->accountKeys['public_key']);
-            rename($this->accountKeys['private_key'] . '.new', $this->accountKeys['private_key']);
-            rename($this->accountKeys['public_key'] . '.new', $this->accountKeys['public_key']);
-
-            if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('Account keys changed.', 'function changeAccountKey');
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Deactivates the LetsEncrypt account.
-     * @return boolean    Returns true if the deactivation is successful, false if not.
-     */
-    public function deactivateAccount()
-    {
-        $sign = $this->connector->signRequestKid(['status' => 'deactivated'], $this->connector->accountURL, $this->connector->accountURL);
-        $post = $this->connector->post($this->connector->accountURL, $sign);
-        if (strpos($post['header'], "200 OK") !== false) {
-            $this->connector->accountDeactivated = true;
-            if ($this->log >= LECLient::LOG_STATUS) LEFunctions::log('Account deactivated.', 'function deactivateAccount');
-            return true;
-        } else {
-            return false;
-        }
-    }
 }
